@@ -1,7 +1,7 @@
 setuptools>=65.5.0
 wheel
 distlib
-openai
+openai==0.27.7
 PyMuPDF==1.22.1
 networkx==3.0
 numpy==1.22.4
