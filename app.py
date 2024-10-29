@@ -41,6 +41,33 @@ def show_description():
     st.write("Maximum Limits: 40 pages, 2000 sentences.")
 
 
+# def process_pdf(uploaded_file):
+#     """Process the uploaded PDF file and generate highlighted PDF."""
+#     st.write("Generating highlighted PDF...")
+#     start_time = time.time()
+
+#     with st.spinner("Processing..."):
+#         result = generate_highlighted_pdf(uploaded_file)
+#         if isinstance(result, str):
+#             st.error(result)
+#             logger.error("Error generating highlighted PDF: %s", result)
+#             return
+#         else:
+#             file = result
+
+#     end_time = time.time()
+#     execution_time = end_time - start_time
+#     st.success(
+#         f"Highlighted PDF generated successfully in {execution_time:.2f} seconds."
+#     )
+
+#     st.write("Download the highlighted PDF:")
+#     st.download_button(
+#         label="Download",
+#         data=file,
+#         file_name="highlighted_pdf.pdf",
+#     )
+
 def process_pdf(uploaded_file):
     """Process the uploaded PDF file and generate highlighted PDF."""
     st.write("Generating highlighted PDF...")
@@ -61,12 +88,23 @@ def process_pdf(uploaded_file):
         f"Highlighted PDF generated successfully in {execution_time:.2f} seconds."
     )
 
+    # Save the highlighted PDF temporarily
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+        temp_file.write(file)
+        temp_file_path = temp_file.name
+
+    # Embed PDF Viewer using iframe
+    st.write("Preview the highlighted PDF:")
+    pdf_viewer(temp_file_path)
+
+    # Provide download option
     st.write("Download the highlighted PDF:")
     st.download_button(
         label="Download",
         data=file,
         file_name="highlighted_pdf.pdf",
     )
+
 
 
 if __name__ == "__main__":
