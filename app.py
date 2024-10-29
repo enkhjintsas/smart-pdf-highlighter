@@ -73,16 +73,16 @@ def show_description():
 #     )
 
 
-def pdf_viewer(pdf_bytes):
-    """Display the PDF inline as a download button, which some browsers allow to render inline."""
-    st.download_button(
-        label="View PDF",
-        data=pdf_bytes,
-        file_name="highlighted_pdf.pdf",
-        mime="application/pdf"
-    )
 
-    
+def pdf_viewer(pdf_bytes):
+    """Display PDF inline by embedding it directly in Streamlit's HTML."""
+    base64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+    pdf_display = f"""
+        <embed src="data:application/pdf;base64,{base64_pdf}" width="700" height="1000" type="application/pdf">
+    """
+    st.markdown(pdf_display, unsafe_allow_html=True)
+
+
 def process_pdf(uploaded_file):
     """Process the uploaded PDF file and generate highlighted PDF."""
     st.write("Generating highlighted PDF...")
@@ -103,14 +103,9 @@ def process_pdf(uploaded_file):
         f"Highlighted PDF generated successfully in {execution_time:.2f} seconds."
     )
 
-    # Save the highlighted PDF temporarily
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-        temp_file.write(file)
-        temp_file_path = temp_file.name
-
-    # Embed PDF Viewer using iframe
+    # Use the inline PDF viewer
     st.write("Preview the highlighted PDF:")
-    pdf_viewer(temp_file_path)
+    pdf_viewer(file)
 
     # Provide download option
     st.write("Download the highlighted PDF:")
