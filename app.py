@@ -23,6 +23,7 @@ from streamlit import session_state as ss
 from src import generate_highlighted_pdf
 import openai
 import streamlit as st
+from functions import is_financially_relevant
 
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
