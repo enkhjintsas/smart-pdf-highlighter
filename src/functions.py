@@ -33,6 +33,11 @@ import torch.nn.functional as F
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
 
+import openai
+import streamlit as st
+
+openai.api_key = st.secrets["OPENAI_API_KEY"]
+
 # Constants
 MAX_PAGE = 40
 MAX_SENTENCES = 2000
@@ -43,6 +48,37 @@ MIN_WORDS = 10
 # Logger configuration
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
+
+
+
+openai.api_key = "your_openai_api_key"
+
+def is_financially_relevant(sentence: str) -> bool:
+    """
+    Uses OpenAI API to determine if a sentence is relevant to key financial metrics
+    and strategies.
+    
+    Args:
+        sentence (str): Sentence to be analyzed.
+        
+    Returns:
+        bool: True if sentence is relevant, False otherwise.
+    """
+    prompt = (
+        "Identify if the following sentence is relevant to financial metrics, "
+        "market trends, or strategic insights, especially if it pertains to financial "
+        "health indicators like cash shortages, leverage reduction, deleveraging, "
+        "cash runway, debt repayment, or retirement strategies:\n\n"
+        f"Sentence: '{sentence}'\n\n"
+        "Answer 'yes' or 'no'."
+    )
+    response = openai.Completion.create(
+        engine="text-davinci-003",
+        prompt=prompt,
+        max_tokens=5
+    )
+    answer = response.choices[0].text.strip().lower()
+    return answer == "yes"
 
 
 def load_sentence_model(revision: str = None) -> SentenceTransformer:
@@ -200,72 +236,121 @@ def extract_text_from_pages(doc):
         yield doc[page_num].get_text()
 
 
-def generate_highlighted_pdf(
-    input_pdf_file: BinaryIO, model=load_sentence_model()
-) -> bytes:
-    """
-    Generate a highlighted PDF with important sentences.
+# def generate_highlighted_pdf(
+#     input_pdf_file: BinaryIO, model=load_sentence_model()
+# ) -> bytes:
+#     """
+#     Generate a highlighted PDF with important sentences.
 
-    Args:
-        input_pdf_file: Input PDF file object.
-        model (SentenceTransformer): Pre-trained sentence embedding model.
+#     Args:
+#         input_pdf_file: Input PDF file object.
+#         model (SentenceTransformer): Pre-trained sentence embedding model.
 
-    Returns:
-        bytes: Highlighted PDF content.
-    """
+#     Returns:
+#         bytes: Highlighted PDF content.
+#     """
+#     with fitz.open(stream=input_pdf_file.read(), filetype="pdf") as doc:
+#         num_pages = doc.page_count
+
+#         if num_pages > MAX_PAGE:
+#             # It will show the error message for the user.
+#             return f"The PDF file exceeds the maximum limit of {MAX_PAGE} pages."
+
+#         sentences = []
+#         for page_text in extract_text_from_pages(doc):  # Memory efficient
+#             sentences.extend(split_text_into_sentences(page_text))
+
+#         len_sentences = len(sentences)
+
+#         print(len_sentences)
+
+#         if len_sentences > MAX_SENTENCES:
+#             # It will show the error message for the user.
+#             return (
+#                 f"The PDF file exceeds the maximum limit of {MAX_SENTENCES} sentences."
+#             )
+
+#         embeddings = encode_sentence(model, sentences)
+#         similarity_matrix = compute_similarity_matrix(embeddings)
+#         graph = build_graph(similarity_matrix)
+#         ranked_sentences = rank_sentences(graph, sentences)
+
+#         pagerank_threshold = int(len(ranked_sentences) * PAGERANK_THRESHOLD_RATIO) + 1
+#         top_pagerank_sentences = [
+#             sentence[0] for sentence in ranked_sentences[:pagerank_threshold]
+#         ]
+
+#         num_clusters = int(len_sentences * NUM_CLUSTERS_RATIO) + 1
+#         cluster_assignments, _ = cluster_sentences(embeddings, num_clusters)
+
+#         center_sentences = get_middle_sentence(cluster_assignments, sentences)
+#         important_sentences = list(set(top_pagerank_sentences + center_sentences))
+
+#         for i in range(num_pages):
+#             try:
+#                 page = doc[i]
+
+#                 for sentence in important_sentences:
+#                     rects = page.search_for(sentence)
+#                     colors = (fitz.pdfcolor["yellow"], fitz.pdfcolor["green"])
+
+#                     for i, rect in enumerate(rects):
+#                         color = colors[i % 2]
+#                         annot = page.add_highlight_annot(rect)
+#                         annot.set_colors(stroke=color)
+#                         annot.update()
+#             except Exception as e:
+#                 logger.error(f"Error processing page {i}: {e}")
+
+#         output_pdf = doc.write()
+
+#     return output_pdf
+
+
+def generate_highlighted_pdf(input_pdf_file: BinaryIO, model=load_sentence_model()) -> bytes:
     with fitz.open(stream=input_pdf_file.read(), filetype="pdf") as doc:
         num_pages = doc.page_count
-
+        
         if num_pages > MAX_PAGE:
-            # It will show the error message for the user.
             return f"The PDF file exceeds the maximum limit of {MAX_PAGE} pages."
 
         sentences = []
         for page_text in extract_text_from_pages(doc):  # Memory efficient
-            sentences.extend(split_text_into_sentences(page_text))
+            all_sentences = split_text_into_sentences(page_text)
+            # Filter by financial relevance
+            financial_sentences = [s for s in all_sentences if is_financially_relevant(s)]
+            sentences.extend(financial_sentences)
 
         len_sentences = len(sentences)
-
-        print(len_sentences)
-
+        
         if len_sentences > MAX_SENTENCES:
-            # It will show the error message for the user.
             return (
                 f"The PDF file exceeds the maximum limit of {MAX_SENTENCES} sentences."
             )
-
+        
         embeddings = encode_sentence(model, sentences)
         similarity_matrix = compute_similarity_matrix(embeddings)
         graph = build_graph(similarity_matrix)
         ranked_sentences = rank_sentences(graph, sentences)
-
+        
         pagerank_threshold = int(len(ranked_sentences) * PAGERANK_THRESHOLD_RATIO) + 1
         top_pagerank_sentences = [
             sentence[0] for sentence in ranked_sentences[:pagerank_threshold]
         ]
 
-        num_clusters = int(len_sentences * NUM_CLUSTERS_RATIO) + 1
-        cluster_assignments, _ = cluster_sentences(embeddings, num_clusters)
-
-        center_sentences = get_middle_sentence(cluster_assignments, sentences)
-        important_sentences = list(set(top_pagerank_sentences + center_sentences))
-
+        # Continue as before, applying highlights to `financial_sentences`
         for i in range(num_pages):
             try:
                 page = doc[i]
-
-                for sentence in important_sentences:
+                for sentence in financial_sentences:
                     rects = page.search_for(sentence)
-                    colors = (fitz.pdfcolor["yellow"], fitz.pdfcolor["green"])
-
-                    for i, rect in enumerate(rects):
-                        color = colors[i % 2]
+                    for rect in rects:
                         annot = page.add_highlight_annot(rect)
-                        annot.set_colors(stroke=color)
                         annot.update()
             except Exception as e:
                 logger.error(f"Error processing page {i}: {e}")
 
         output_pdf = doc.write()
-
+    
     return output_pdf
+
