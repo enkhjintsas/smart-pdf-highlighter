@@ -66,7 +66,7 @@ def is_financially_relevant(sentence: str) -> bool:
     for attempt in range(retry_attempts):
         try:
             response = openai.ChatCompletion.create(
-                model="gpt-4o",
+                model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant for financial analysis."},
                     {"role": "user", "content": prompt}
