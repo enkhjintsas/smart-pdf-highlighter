@@ -21,6 +21,10 @@ from streamlit_pdf_viewer import pdf_viewer
 from streamlit import session_state as ss
 
 from src import generate_highlighted_pdf
+import openai
+import streamlit as st
+
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
