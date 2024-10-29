@@ -1,3 +1,20 @@
+"""
+This module provides functions for generating a highlighted PDF with important sentences.
+
+The main function, `generate_highlighted_pdf`, takes an input PDF file and a pre-trained
+sentence embedding model as input.
+
+It splits the text of the PDF into sentences, computes sentence embeddings, and builds a
+graph based on the cosine similarity between embeddings. Sentences are clustered, and important
+ones are selected based on PageRank scores and clustering.
+
+Finally, the selected sentences are highlighted in the PDF, and the highlighted PDF content
+is returned.
+
+Note: This module requires PyMuPDF, networkx, numpy, torch, sentence_transformers, openai,
+and sklearn libraries.
+"""
+
 import logging
 from typing import BinaryIO, List, Tuple
 import fitz  # PyMuPDF
@@ -9,12 +26,8 @@ from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
 import time
 import openai
-import streamlit as st
-import random
 import tiktoken  # For token counting
-
-# Configure OpenAI API key
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+import random
 
 # Constants
 MAX_PAGE = 40
@@ -23,8 +36,9 @@ MIN_WORDS = 10
 PAGERANK_THRESHOLD_RATIO = 0.15
 NUM_CLUSTERS_RATIO = 0.05
 MODEL_NAME = "gpt-3.5-turbo"
-MAX_TOKENS = 4096  # Max tokens for gpt-3.5-turbo
-CHUNK_SIZE = 2000  # Adjust based on your needs and model limits
+MAX_MODEL_TOKENS = 4096  # Max tokens for gpt-3.5-turbo
+MAX_PROMPT_TOKENS = 3500  # Leave room for response tokens
+CHUNK_SIZE = 500  # Maximum number of sentences per chunk (adjust as needed)
 
 # Logger configuration
 logging.basicConfig(level=logging.ERROR)
@@ -37,7 +51,7 @@ def count_tokens(text: str, model_name: str = MODEL_NAME) -> int:
     encoding = tiktoken.encoding_for_model(model_name)
     return len(encoding.encode(text))
 
-def chunk_sentences(sentences: List[str], max_chunk_size: int) -> List[List[str]]:
+def chunk_sentences(sentences: List[str], max_tokens: int) -> List[List[str]]:
     """
     Splits a list of sentences into chunks that stay within the token limit.
     """
@@ -47,14 +61,18 @@ def chunk_sentences(sentences: List[str], max_chunk_size: int) -> List[List[str]
 
     for sentence in sentences:
         sentence_tokens = count_tokens(sentence)
-        if current_tokens + sentence_tokens > max_chunk_size:
+        # Add tokens for the prompt formatting per sentence
+        prompt_tokens = count_tokens(f"Sentence: {sentence}\nAnswer:") + 2  # Extra tokens for formatting
+        total_tokens = sentence_tokens + prompt_tokens
+
+        if current_tokens + total_tokens > max_tokens:
             if current_chunk:
                 chunks.append(current_chunk)
             current_chunk = [sentence]
-            current_tokens = sentence_tokens
+            current_tokens = total_tokens
         else:
             current_chunk.append(sentence)
-            current_tokens += sentence_tokens
+            current_tokens += total_tokens
 
     if current_chunk:
         chunks.append(current_chunk)
@@ -64,31 +82,33 @@ def chunk_sentences(sentences: List[str], max_chunk_size: int) -> List[List[str]
 def is_financially_relevant_batch(sentences: List[str]) -> List[bool]:
     """
     Determines if each sentence in the batch is financially relevant.
+
     Args:
         sentences (List[str]): List of sentences to analyze.
+
     Returns:
         List[bool]: List indicating relevance for each sentence.
     """
     prompt_header = (
-        "For each sentence below, identify if it is relevant to financial metrics, "
-        "market trends, or strategic insights, focusing on financial health indicators "
-        "such as cash shortages, leverage reduction, deleveraging, cash runway, debt "
-        "repayment, or retirement strategies.\n\n"
+        "Identify if each of the following sentences is relevant to financial metrics, "
+        "market trends, or strategic insights, especially if it pertains to financial "
+        "health indicators like cash shortages, leverage reduction, deleveraging, cash "
+        "runway, debt repayment, or retirement strategies.\n\n"
     )
 
     # Prepare sentences for the prompt
-    sentence_list = [f"Sentence {i+1}: {sentence}" for i, sentence in enumerate(sentences)]
-    prompt_body = "\n".join(sentence_list)
-    prompt_footer = "\n\nRespond with 'yes' or 'no' for each sentence in order, one per line."
+    prompt_body = ""
+    for i, sentence in enumerate(sentences):
+        prompt_body += f"Sentence {i+1}: {sentence}\nAnswer:\n"
 
-    full_prompt = prompt_header + prompt_body + prompt_footer
+    full_prompt = prompt_header + prompt_body
 
     # Estimate total tokens
     prompt_tokens = count_tokens(full_prompt)
     max_response_tokens = 2 * len(sentences)  # Estimate 2 tokens per response
     total_tokens = prompt_tokens + max_response_tokens
 
-    if total_tokens > MAX_TOKENS:
+    if total_tokens > MAX_MODEL_TOKENS:
         raise ValueError("The combined prompt and expected response exceed the token limit.")
 
     # Retry logic with exponential backoff
@@ -107,8 +127,14 @@ def is_financially_relevant_batch(sentences: List[str]) -> List[bool]:
                 temperature=0.0,
             )
             # Parse the responses
-            answers = response.choices[0].message['content'].strip().splitlines()
-            return ["yes" in answer.lower() for answer in answers]
+            answers = response.choices[0].message['content'].strip().split('\n')
+            results = []
+            for answer in answers:
+                if "yes" in answer.lower():
+                    results.append(True)
+                else:
+                    results.append(False)
+            return results
         except (openai.error.OpenAIError, Exception) as e:
             jitter = random.uniform(0, 3)
             print(f"API error: {e}. Retrying in {delay + jitter:.2f} seconds...")
@@ -117,11 +143,11 @@ def is_financially_relevant_batch(sentences: List[str]) -> List[bool]:
 
     raise Exception("Exceeded maximum retry attempts due to API errors.")
 
-def load_sentence_model(revision: str = None) -> SentenceTransformer:
+def load_sentence_model() -> SentenceTransformer:
     """
     Load a pre-trained sentence embedding model.
     """
-    return SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2', revision=revision)
+    return SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
 def encode_sentences(model: SentenceTransformer, sentences: List[str]) -> torch.Tensor:
     """
@@ -137,7 +163,10 @@ def compute_similarity_matrix(embeddings: torch.Tensor) -> np.ndarray:
     """
     Compute cosine similarity matrix between embeddings.
     """
-    similarity_matrix = torch.matmul(embeddings, embeddings.T).cpu().numpy()
+    similarity_matrix = F.cosine_similarity(
+        embeddings.unsqueeze(1), embeddings.unsqueeze(0), dim=-1
+    ).cpu().numpy()
+    # Normalize the matrix
     normalized_adjacency_matrix = similarity_matrix / np.sum(similarity_matrix, axis=1, keepdims=True)
     return normalized_adjacency_matrix
 
@@ -149,7 +178,7 @@ def build_graph(normalized_adjacency_matrix: np.ndarray) -> nx.DiGraph:
 
 def rank_sentences(graph: nx.DiGraph, sentences: List[str]) -> List[Tuple[str, float]]:
     """
-    Rank sentences using PageRank algorithm.
+    Rank sentences using the PageRank algorithm.
     """
     pagerank_scores = nx.pagerank(graph)
     ranked_sentences = sorted(
@@ -163,8 +192,11 @@ def split_text_into_sentences(text: str, min_words: int = MIN_WORDS) -> List[str
     """
     Split text into sentences, filtering out short ones.
     """
+    import re
+    sentence_endings = re.compile(r'[\.\?!]\s+')
+    raw_sentences = sentence_endings.split(text)
     sentences = []
-    for s in text.replace('\n', ' ').split('.'):
+    for s in raw_sentences:
         s = s.strip()
         if (
             s
@@ -174,45 +206,58 @@ def split_text_into_sentences(text: str, min_words: int = MIN_WORDS) -> List[str
             sentences.append(s)
     return sentences
 
-def extract_text_from_pages(doc):
+def extract_text_from_pages(doc) -> List[str]:
     """
-    Generator to extract text from each page of the PDF.
+    Extract text from each page of the PDF.
     """
+    page_texts = []
     for page_num in range(len(doc)):
-        yield doc[page_num].get_text()
+        page_text = doc[page_num].get_text()
+        page_texts.append(page_text)
+    return page_texts
 
-def generate_highlighted_pdf(input_pdf_file: BinaryIO, model=None) -> bytes:
+def generate_highlighted_pdf(input_pdf_file: BinaryIO) -> bytes:
     """
     Generate a PDF with important sentences highlighted.
+
+    Args:
+        input_pdf_file (BinaryIO): Input PDF file object.
+
+    Returns:
+        bytes: The content of the highlighted PDF.
     """
-    if model is None:
-        model = load_sentence_model()
+    model = load_sentence_model()
 
     with fitz.open(stream=input_pdf_file.read(), filetype="pdf") as doc:
         num_pages = doc.page_count
 
         if num_pages > MAX_PAGE:
-            return f"The PDF file exceeds the maximum limit of {MAX_PAGE} pages."
+            raise ValueError(f"The PDF file exceeds the maximum limit of {MAX_PAGE} pages.")
 
+        # Extract text from all pages
+        page_texts = extract_text_from_pages(doc)
+
+        # Split and collect all sentences
         all_sentences = []
-        for page_text in extract_text_from_pages(doc):
+        for page_text in page_texts:
             sentences = split_text_into_sentences(page_text)
             all_sentences.extend(sentences)
 
         if len(all_sentences) > MAX_SENTENCES:
-            return f"The PDF file exceeds the maximum limit of {MAX_SENTENCES} sentences."
+            raise ValueError(f"The PDF file exceeds the maximum limit of {MAX_SENTENCES} sentences.")
 
         # Chunk sentences to handle token limits
-        sentence_chunks = chunk_sentences(all_sentences, CHUNK_SIZE)
+        sentence_chunks = chunk_sentences(all_sentences, MAX_PROMPT_TOKENS)
 
         # Identify financially relevant sentences
         financial_sentences = []
         for chunk in sentence_chunks:
             relevance = is_financially_relevant_batch(chunk)
-            financial_sentences.extend([s for s, r in zip(chunk, relevance) if r])
+            relevant_sentences = [s for s, r in zip(chunk, relevance) if r]
+            financial_sentences.extend(relevant_sentences)
 
         if not financial_sentences:
-            return "No financially relevant sentences found in the document."
+            raise ValueError("No financially relevant sentences found in the document.")
 
         # Encode financially relevant sentences
         embeddings = encode_sentences(model, financial_sentences)
