@@ -43,21 +43,25 @@ MIN_WORDS = 10
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
-def is_financially_relevant(sentence: str) -> bool:
+def is_financially_relevant_batch(sentences: List[str]) -> List[bool]:
     """
-    Uses OpenAI to determine if a sentence is relevant to financial metrics and strategies.
+    Checks if each sentence in a list is financially relevant by batching sentences.
+    Args:
+        sentences (List[str]): List of sentences to analyze.
+    Returns:
+        List[bool]: List of booleans indicating relevance for each sentence.
     """
     prompt = (
-        "Identify if the following sentence is relevant to financial metrics, "
-        "market trends, or strategic insights, especially if it pertains to financial "
-        "health indicators like cash shortages, leverage reduction, deleveraging, "
-        "cash runway, debt repayment, or retirement strategies:\n\n"
-        f"Sentence: '{sentence}'\n\n"
-        "Answer 'yes' or 'no'."
+        "For each sentence below, identify if it is relevant to financial metrics, "
+        "market trends, or strategic insights, focusing on financial health indicators "
+        "such as cash shortages, leverage reduction, deleveraging, cash runway, debt "
+        "repayment, or retirement strategies.\n\n"
     )
+    prompt += "\n\n".join([f"Sentence {i+1}: '{sentence}'" for i, sentence in enumerate(sentences)])
+    prompt += "\n\nAnswer 'yes' or 'no' for each sentence."
 
     retry_attempts = 5
-    delay = 1  # Start with a 1-second delay
+    delay = 1
 
     for attempt in range(retry_attempts):
         try:
@@ -67,15 +71,17 @@ def is_financially_relevant(sentence: str) -> bool:
                     {"role": "system", "content": "You are a helpful assistant for financial analysis."},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=5
+                max_tokens=10 * len(sentences)  # Adjust tokens based on batch size
             )
-            answer = response.choices[0].message['content'].strip().lower()
-            return answer == "yes"
+            # Parse answers for each sentence
+            answers = response.choices[0].message['content'].strip().splitlines()
+            return ["yes" in answer.lower() for answer in answers]
         except openai.error.RateLimitError:
             print(f"Rate limit exceeded. Retrying in {delay} seconds...")
             time.sleep(delay)
-            delay *= 2  # Exponentially increase delay for each retry
+            delay *= 2  # Exponential backoff
     raise Exception("Exceeded maximum retry attempts due to rate limit.")
+
 
 def load_sentence_model(revision: str = None) -> SentenceTransformer:
     """Load a pre-trained sentence embedding model."""
