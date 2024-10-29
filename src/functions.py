@@ -33,6 +33,7 @@ import torch.nn.functional as F
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
 
+import time
 import openai
 import streamlit as st
 
@@ -49,21 +50,7 @@ MIN_WORDS = 10
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
-
-
-openai.api_key = "your_openai_api_key"
-
 def is_financially_relevant(sentence: str) -> bool:
-    """
-    Uses OpenAI API to determine if a sentence is relevant to key financial metrics
-    and strategies.
-    
-    Args:
-        sentence (str): Sentence to be analyzed.
-        
-    Returns:
-        bool: True if sentence is relevant, False otherwise.
-    """
     prompt = (
         "Identify if the following sentence is relevant to financial metrics, "
         "market trends, or strategic insights, especially if it pertains to financial "
@@ -72,16 +59,28 @@ def is_financially_relevant(sentence: str) -> bool:
         f"Sentence: '{sentence}'\n\n"
         "Answer 'yes' or 'no'."
     )
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant for financial analysis."},
-            {"role": "user", "content": prompt}
-        ],
-        max_tokens=5
-    )
-    answer = response.choices[0].message['content'].strip().lower()
-    return answer == "yes"
+
+    retry_attempts = 5
+    delay = 1  # Start with a 1-second delay
+
+    for attempt in range(retry_attempts):
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant for financial analysis."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=5
+            )
+            answer = response.choices[0].message['content'].strip().lower()
+            return answer == "yes"
+        except openai.error.RateLimitError:
+            print(f"Rate limit exceeded. Retrying in {delay} seconds...")
+            time.sleep(delay)
+            delay *= 2  # Exponentially increase delay for each retry
+    raise Exception("Exceeded maximum retry attempts due to rate limit.")
+
 
 
 def load_sentence_model(revision: str = None) -> SentenceTransformer:
