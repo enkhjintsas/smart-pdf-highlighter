@@ -43,7 +43,7 @@ MIN_WORDS = 10
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
-def is_financially_relevant_batch(sentences: List[str]) -> List[bool]:
+def is_financially_relevant(sentences: List[str]) -> List[bool]:
     """
     Checks if each sentence in a list is financially relevant by batching sentences.
     Args:
