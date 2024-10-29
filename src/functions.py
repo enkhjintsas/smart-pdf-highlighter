@@ -29,19 +29,22 @@ logger = logging.getLogger(__name__)
 import random
 import time
 import openai
-from typing import List
+from typing import List, Union
 
-def is_financially_relevant_batch(page_text: str) -> List[bool]:
+def is_financially_relevant_batch(page_text: Union[str, List[str]]) -> List[bool]:
     """
     Determines if each sentence on a page is financially relevant by processing the entire page as a batch.
     Args:
-        page_text (str): Text content of the page.
+        page_text (Union[str, List[str]]): Text content of the page (either as a single string or a list of strings).
     Returns:
         List[bool]: List of booleans indicating relevance for each sentence on the page.
     """
+    # If page_text is a list, join it into a single string
+    if isinstance(page_text, list):
+        page_text = " ".join(page_text)
+
     # Split the page text into sentences
     sentences = page_text.split(".")
-    # Remove empty sentences and strip whitespace
     sentences = [s.strip() for s in sentences if s.strip()]
 
     # Formulate the prompt for OpenAI
