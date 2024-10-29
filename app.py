@@ -84,6 +84,7 @@ def pdf_viewer(pdf_bytes):
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
 
+
 def process_pdf(uploaded_file):
     """Process the uploaded PDF file and display it inline with streamlit_pdf_viewer."""
     st.write("Generating highlighted PDF...")
@@ -104,18 +105,14 @@ def process_pdf(uploaded_file):
         f"Highlighted PDF generated successfully in {execution_time:.2f} seconds."
     )
 
-    # Use the streamlit_pdf_viewer to display the PDF inline
+    # Save the PDF to a temporary file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+        temp_file.write(file)
+        temp_file_path = temp_file.name
+
+    # Display PDF viewer with file path
     st.write("Preview the highlighted PDF:")
-
-    # Store the PDF file in session state for re-accessibility
-    if 'pdf_ref' not in ss:
-        ss.pdf_ref = None
-    ss.pdf_ref = file  # Set the PDF to session state
-
-    # Display PDF viewer
-    if ss.pdf_ref:
-        binary_data = ss.pdf_ref
-        pdf_viewer(input=binary_data, width=700)
+    pdf_viewer(file_path=temp_file_path, width=700)
 
     # Provide download option
     st.write("Download the highlighted PDF:")
@@ -124,6 +121,7 @@ def process_pdf(uploaded_file):
         data=file,
         file_name="highlighted_pdf.pdf",
     )
+
 
 
 
