@@ -73,13 +73,15 @@ def show_description():
 #     )
 
 
+def pdf_viewer(pdf_bytes):
+    """Display the PDF inline as a download button, which some browsers allow to render inline."""
+    st.download_button(
+        label="View PDF",
+        data=pdf_bytes,
+        file_name="highlighted_pdf.pdf",
+        mime="application/pdf"
+    )
 
-def pdf_viewer(pdf_path):
-    """Display PDF in an HTML component viewer."""
-    with open(pdf_path, "rb") as f:
-        base64_pdf = base64.b64encode(f.read()).decode("utf-8")
-    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="900" type="application/pdf"></iframe>'
-    components.html(pdf_display, height=900)
     
 def process_pdf(uploaded_file):
     """Process the uploaded PDF file and generate highlighted PDF."""
