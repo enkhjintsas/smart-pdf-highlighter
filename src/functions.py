@@ -26,14 +26,34 @@ MIN_WORDS = 10
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
-def is_financially_relevant_batch(sentences: List[str]) -> List[bool]:
+import random
+import time
+import openai
+from typing import List
+
+def count_tokens(text: str) -> int:
     """
-    Determines if a batch of sentences is financially relevant.
+    Estimate the number of tokens in a given text.
+    """
+    return len(text.split()) * 4 // 3  # Approximate words to tokens conversion
+
+def is_financially_relevant_page(page_text: str) -> List[bool]:
+    """
+    Determines if each sentence on a page is financially relevant by processing the entire page as a batch.
     Args:
-        sentences (List[str]): List of sentences to analyze.
+        page_text (str): Text content of the page.
     Returns:
-        List[bool]: List of booleans indicating relevance for each sentence.
+        List[bool]: List of booleans indicating relevance for each sentence on the page.
     """
+    sentences = page_text.split(".")
+    # Filter out empty sentences and strip whitespace
+    sentences = [s.strip() for s in sentences if s.strip()]
+    
+    # Estimate tokens for the full page
+    token_count = count_tokens(page_text)
+    if token_count > 4000:
+        raise ValueError("Page is too long to process in a single API call. Consider splitting the page.")
+    
     prompt = (
         "For each sentence below, identify if it is relevant to financial metrics, "
         "market trends, or strategic insights, focusing on financial health indicators "
@@ -44,7 +64,7 @@ def is_financially_relevant_batch(sentences: List[str]) -> List[bool]:
     prompt += "\n\nAnswer 'yes' or 'no' for each sentence."
 
     retry_attempts = 5
-    delay = 2  # Start with a 2-second delay
+    delay = 5  # Start with a 5-second delay
 
     for attempt in range(retry_attempts):
         try:
@@ -54,16 +74,20 @@ def is_financially_relevant_batch(sentences: List[str]) -> List[bool]:
                     {"role": "system", "content": "You are a helpful assistant for financial analysis."},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=10 * len(sentences)  # Allocate tokens based on batch size
+                max_tokens=1000  # Allow up to 1000 tokens for output to cover all sentences
             )
             # Parse answers for each sentence
             answers = response.choices[0].message['content'].strip().splitlines()
             return ["yes" in answer.lower() for answer in answers]
+        
         except openai.error.RateLimitError:
-            print(f"Rate limit exceeded. Retrying in {delay} seconds...")
-            time.sleep(delay)
+            jitter = random.uniform(0, 3)  # Random delay up to 3 seconds
+            print(f"Rate limit exceeded. Retrying in {delay + jitter:.2f} seconds...")
+            time.sleep(delay + jitter)
             delay *= 2  # Exponentially increase delay for each retry
+
     raise Exception("Exceeded maximum retry attempts due to rate limit.")
+
 
 def load_sentence_model(revision: str = None) -> SentenceTransformer:
     return SentenceTransformer("avsolatorio/GIST-Embedding-v0", revision=revision)
