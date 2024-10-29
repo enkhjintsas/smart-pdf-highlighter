@@ -72,12 +72,15 @@ def is_financially_relevant(sentence: str) -> bool:
         f"Sentence: '{sentence}'\n\n"
         "Answer 'yes' or 'no'."
     )
-    response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=prompt,
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant for financial analysis."},
+            {"role": "user", "content": prompt}
+        ],
         max_tokens=5
     )
-    answer = response.choices[0].text.strip().lower()
+    answer = response.choices[0].message['content'].strip().lower()
     return answer == "yes"
 
 
