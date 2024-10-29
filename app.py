@@ -109,7 +109,7 @@ def process_pdf(uploaded_file):
 
     # Display the PDF inline using pdf_viewer with binary data
     st.write("Preview the highlighted PDF:")
-    pdf_viewer(file, width=700)  # Directly passing bytes
+    pdf_viewer(file, width=700, height=1000) 
 
     # Provide download option
     st.write("Download the highlighted PDF:")
