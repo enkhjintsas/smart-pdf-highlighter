@@ -10,3 +10,4 @@ sentence-transformers==2.2.2
 streamlit==1.15.0
 torch==1.13.1
 tiktoken  # Added tiktoken for token counting
+altair>=4.0.0 
