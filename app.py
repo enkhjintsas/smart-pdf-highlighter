@@ -84,6 +84,8 @@ def pdf_viewer(pdf_bytes):
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
 
+from streamlit_pdf_viewer import pdf_viewer
+import streamlit as st
 
 def process_pdf(uploaded_file):
     """Process the uploaded PDF file and display it inline with streamlit_pdf_viewer."""
@@ -97,7 +99,7 @@ def process_pdf(uploaded_file):
             logger.error("Error generating highlighted PDF: %s", result)
             return
         else:
-            file = result
+            file = result  # This should be the bytes of the highlighted PDF
 
     end_time = time.time()
     execution_time = end_time - start_time
@@ -105,14 +107,9 @@ def process_pdf(uploaded_file):
         f"Highlighted PDF generated successfully in {execution_time:.2f} seconds."
     )
 
-    # Save the PDF to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-        temp_file.write(file)
-        temp_file_path = temp_file.name
-
-    # Display PDF viewer with file path
+    # Display the PDF inline using pdf_viewer with binary data
     st.write("Preview the highlighted PDF:")
-    pdf_viewer(file_path=temp_file_path, width=700)
+    pdf_viewer(file, width=700)  # Directly passing bytes
 
     # Provide download option
     st.write("Download the highlighted PDF:")
@@ -121,6 +118,7 @@ def process_pdf(uploaded_file):
         data=file,
         file_name="highlighted_pdf.pdf",
     )
+
 
 
 
