@@ -15,6 +15,7 @@ import tempfile
 
 import streamlit as st
 import base64
+import streamlit.components.v1 as components
 
 
 from src import generate_highlighted_pdf
@@ -71,12 +72,14 @@ def show_description():
 #         file_name="highlighted_pdf.pdf",
 #     )
 
+
+
 def pdf_viewer(pdf_path):
-    """Display PDF in an iframe viewer."""
+    """Display PDF in an HTML component viewer."""
     with open(pdf_path, "rb") as f:
         base64_pdf = base64.b64encode(f.read()).decode("utf-8")
     pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="900" type="application/pdf"></iframe>'
-    st.markdown(pdf_display, unsafe_allow_html=True)
+    components.html(pdf_display, height=900)
     
 def process_pdf(uploaded_file):
     """Process the uploaded PDF file and generate highlighted PDF."""
