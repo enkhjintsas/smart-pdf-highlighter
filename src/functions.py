@@ -37,7 +37,7 @@ def count_tokens(text: str) -> int:
     """
     return len(text.split()) * 4 // 3  # Approximate words to tokens conversion
 
-def is_financially_relevant_page(page_text: str) -> List[bool]:
+def is_financially_relevant(page_text: str) -> List[bool]:
     """
     Determines if each sentence on a page is financially relevant by processing the entire page as a batch.
     Args:
