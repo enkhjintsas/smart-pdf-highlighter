@@ -19,12 +19,12 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from sentence_transformers import SentenceTransformer
-from sklearn.cluster import KMeans
 import time
 import openai
 import tiktoken  # For token counting
 import random
 import streamlit as st  # Import Streamlit to access secrets
+from huggingface_hub import hf_hub_download  # Updated import
 
 # Constants
 MAX_PAGE = 40
@@ -145,7 +145,16 @@ def load_sentence_model() -> SentenceTransformer:
     """
     Load a pre-trained sentence embedding model.
     """
-    return SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+    # Use hf_hub_download to download the model files
+    model_name = 'sentence-transformers/all-MiniLM-L6-v2'
+    model_path = hf_hub_download(repo_id=model_name, filename='pytorch_model.bin')
+    config_path = hf_hub_download(repo_id=model_name, filename='config.json')
+    tokenizer_config_path = hf_hub_download(repo_id=model_name, filename='tokenizer_config.json')
+    vocab_path = hf_hub_download(repo_id=model_name, filename='vocab.txt')
+
+    # Initialize the model using the downloaded files
+    model = SentenceTransformer(model_name_or_path=model_name, cache_folder=None)
+    return model
 
 def encode_sentences(model: SentenceTransformer, sentences: List[str]) -> torch.Tensor:
     """
