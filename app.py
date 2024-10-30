@@ -3,7 +3,7 @@ import time
 
 import streamlit as st
 
-from src import generate_highlighted_pdf
+from functions import generate_highlighted_pdf  # Import from functions.py
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -26,10 +26,10 @@ def main():
 def show_description():
     """Display description of functionality and maximum limits."""
     st.write("""Welcome to Smart PDF Highlighter! This tool automatically identifies
-        and highlights content within your PDF files that are relevant to your query.
-        It utilizes AI techniques, including the OpenAI API, to analyze the text and
-        intelligently select key sentences for highlighting based on their relevance to
-        your query.""")
+            and highlights content within your PDF files that are relevant to your query.
+            It utilizes AI techniques, including the OpenAI API, to analyze the text and
+            intelligently select key sentences for highlighting based on their relevance to
+            your query.""")
     st.write("Maximum Limits: 40 pages, 2000 sentences.")
 
 def process_pdf(uploaded_file, query):
