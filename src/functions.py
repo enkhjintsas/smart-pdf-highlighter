@@ -1,15 +1,11 @@
 """
 This module provides functions for generating a highlighted PDF with important sentences.
 
-The main function, `generate_highlighted_pdf`, takes an input PDF file and a pre-trained
-sentence embedding model as input.
+The main function, `generate_highlighted_pdf`, takes an input PDF file and generates a
+highlighted version of the PDF based on the financial relevance of sentences.
 
-It splits the text of the PDF into sentences, computes sentence embeddings, and builds a
-graph based on the cosine similarity between embeddings. Sentences are clustered, and important
-ones are selected based on PageRank scores and clustering.
-
-Finally, the selected sentences are highlighted in the PDF, and the highlighted PDF content
-is returned.
+It splits the text of the PDF into sentences, determines financial relevance using OpenAI's API,
+and highlights the most important sentences.
 
 Note: This module requires PyMuPDF, networkx, numpy, torch, sentence_transformers, openai,
 and sklearn libraries.
@@ -28,21 +24,23 @@ import time
 import openai
 import tiktoken  # For token counting
 import random
+import streamlit as st  # Import Streamlit to access secrets
 
 # Constants
 MAX_PAGE = 40
 MAX_SENTENCES = 2000
 MIN_WORDS = 10
 PAGERANK_THRESHOLD_RATIO = 0.15
-NUM_CLUSTERS_RATIO = 0.05
 MODEL_NAME = "gpt-3.5-turbo"
 MAX_MODEL_TOKENS = 4096  # Max tokens for gpt-3.5-turbo
 MAX_PROMPT_TOKENS = 3500  # Leave room for response tokens
-CHUNK_SIZE = 500  # Maximum number of sentences per chunk (adjust as needed)
 
 # Logger configuration
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
+
+# Retrieve the OpenAI API key from Streamlit secrets
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 def count_tokens(text: str, model_name: str = MODEL_NAME) -> int:
     """
@@ -90,16 +88,16 @@ def is_financially_relevant_batch(sentences: List[str]) -> List[bool]:
         List[bool]: List indicating relevance for each sentence.
     """
     prompt_header = (
-        "Identify if each of the following sentences is relevant to financial metrics, "
-        "market trends, or strategic insights, especially if it pertains to financial "
-        "health indicators like cash shortages, leverage reduction, deleveraging, cash "
-        "runway, debt repayment, or retirement strategies.\n\n"
+        "Identify whether each of the following sentences is relevant to financial metrics, "
+        "market trends, or strategic insights, focusing on financial health indicators like "
+        "cash shortages, leverage reduction, deleveraging, cash runway, debt repayment, or "
+        "retirement strategies.\n\n"
     )
 
     # Prepare sentences for the prompt
     prompt_body = ""
     for i, sentence in enumerate(sentences):
-        prompt_body += f"Sentence {i+1}: {sentence}\nAnswer:\n"
+        prompt_body += f"Sentence {i+1}: {sentence}\nAnswer (yes or no):\n"
 
     full_prompt = prompt_header + prompt_body
 
@@ -193,7 +191,7 @@ def split_text_into_sentences(text: str, min_words: int = MIN_WORDS) -> List[str
     Split text into sentences, filtering out short ones.
     """
     import re
-    sentence_endings = re.compile(r'[\.\?!]\s+')
+    sentence_endings = re.compile(r'(?<=[.!?])\s+')
     raw_sentences = sentence_endings.split(text)
     sentences = []
     for s in raw_sentences:
