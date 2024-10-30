@@ -1,25 +1,10 @@
-"""
-Smart PDF Highlighter
-This script provides a Streamlit web application for automatically identifying and
-highlighting important content within PDF files. It utilizes AI techniques such as
-deep learning, clustering, and advanced algorithms such as PageRank to analyze text
-and intelligently select key sentences for highlighting.
-
-Author: Farzad Salajegheh
-Date: 2024
-"""
-
 import logging
 import time
-import base64
+
 import streamlit as st
-import openai
+
 from src import generate_highlighted_pdf
 
-# Set the OpenAI API key using Streamlit secrets for security
-openai.api_key = st.secrets["OPENAI_API_KEY"]
-
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -32,55 +17,47 @@ def main():
     uploaded_file = st.file_uploader("Upload a PDF file", type=["pdf"])
     if uploaded_file is not None:
         st.write("PDF file successfully uploaded.")
-        process_pdf(uploaded_file)
+        query = st.text_input("Enter your query to highlight relevant sentences:")
+        if query:
+            process_pdf(uploaded_file, query)
+        else:
+            st.warning("Please enter a query to proceed.")
 
 def show_description():
     """Display description of functionality and maximum limits."""
-    st.write("""
-        Welcome to Smart PDF Highlighter! This tool automatically identifies
-        and highlights important content within your PDF files. It utilizes 
-        various AI techniques such as deep learning and other advanced algorithms
-        to analyze the text and intelligently select key sentences for highlighting.
-    """)
+    st.write("""Welcome to Smart PDF Highlighter! This tool automatically identifies
+        and highlights content within your PDF files that are relevant to your query.
+        It utilizes AI techniques, including the OpenAI API, to analyze the text and
+        intelligently select key sentences for highlighting based on their relevance to
+        your query.""")
     st.write("Maximum Limits: 40 pages, 2000 sentences.")
 
-def process_pdf(uploaded_file):
-    """Process the uploaded PDF file and display it inline with a download option."""
-    st.write("Generating highlighted PDF...")
+def process_pdf(uploaded_file, query):
+    """Process the uploaded PDF file and generate highlighted PDF."""
+    st.write("Generating highlighted PDF based on your query...")
     start_time = time.time()
 
     with st.spinner("Processing..."):
-        result = generate_highlighted_pdf(uploaded_file)
+        result = generate_highlighted_pdf(uploaded_file, query)
         if isinstance(result, str):
             st.error(result)
             logger.error("Error generating highlighted PDF: %s", result)
             return
         else:
-            pdf_bytes = result  # This should be the bytes of the highlighted PDF
+            file = result
 
     end_time = time.time()
     execution_time = end_time - start_time
-    st.success(f"Highlighted PDF generated successfully in {execution_time:.2f} seconds.")
+    st.success(
+        f"Highlighted PDF generated successfully in {execution_time:.2f} seconds."
+    )
 
-    # Display the PDF inline
-    st.write("Preview the highlighted PDF:")
-    pdf_viewer(pdf_bytes)
-
-    # Provide download option
     st.write("Download the highlighted PDF:")
     st.download_button(
         label="Download",
-        data=pdf_bytes,
+        data=file,
         file_name="highlighted_pdf.pdf",
     )
-
-def pdf_viewer(pdf_bytes):
-    """Display PDF inline by embedding it directly in Streamlit's HTML."""
-    base64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
-    pdf_display = f"""
-        <embed src="data:application/pdf;base64,{base64_pdf}" width="700" height="1000" type="application/pdf">
-    """
-    st.markdown(pdf_display, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
