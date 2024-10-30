@@ -2,6 +2,7 @@ import logging
 import time
 
 import streamlit as st
+from streamlit_pdf_viewer import pdf_viewer
 
 from src import generate_highlighted_pdf  # Import from functions.py
 
@@ -51,6 +52,9 @@ def process_pdf(uploaded_file, query):
     st.success(
         f"Highlighted PDF generated successfully in {execution_time:.2f} seconds."
     )
+
+    st.write("Preview the highlighted PDF:")
+    pdf_viewer(file, width=700, height = 1000)  # Directly passing bytes
 
     st.write("Download the highlighted PDF:")
     st.download_button(
