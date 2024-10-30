@@ -4,3 +4,4 @@ numpy==1.21.2
 openai==0.27.0
 scikit-learn==0.24.2
 streamlit==1.24.1
+streamlit-pdf-viewer
