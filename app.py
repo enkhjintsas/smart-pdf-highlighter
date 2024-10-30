@@ -3,7 +3,7 @@ import time
 
 import streamlit as st
 
-from functions import generate_highlighted_pdf  # Import from functions.py
+from src import generate_highlighted_pdf  # Import from functions.py
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
